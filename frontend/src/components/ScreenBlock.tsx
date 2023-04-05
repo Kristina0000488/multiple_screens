@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useCallback } from 'react';
 
-//import { moveScreen, removeAllListeners } from '../utils';
+import { locationScreenBlockType } from '../types';
 
 import '../css/ScreenBlock.css';
 
@@ -8,25 +8,28 @@ import '../css/ScreenBlock.css';
 type Props = {
     path: string;
     id: string;
-    //isResize: boolean;
-    //isMove: boolean;
+    isResize: boolean;
+    _startMove: boolean;
+    _endMove: boolean;
+    passLocation: ( location: locationScreenBlockType ) => void;
 }
 
 function ScreenBlock(props: Props) { 
-    const [ isResize, setIsResize ] = useState(false);
-    const [ isMove, setIsMove ] = useState(true);
-
-    const { path, id } = props;   
+    const { path, id, isResize, _startMove, _endMove, passLocation } = props;   
 
     let idParentElem = 'app';
 
     let mousePosition;
     let offset = [0,0];
-    let div: HTMLElement | null;
+    let div: HTMLElement | null = document.getElementById(id);
     let isDown = false;
 
+    useEffect( () => {
+        if ( _startMove ) start();
+        if ( _endMove ) end();
+    }, [ _startMove, _endMove ] );
 
-    function startMove(e: MouseEvent) {
+    const startMove = useCallback( (e: MouseEvent) => {
         isDown = true;
   
         if (div) {
@@ -35,22 +38,19 @@ function ScreenBlock(props: Props) {
               div.offsetTop - e.clientY
           ] 
         } 
-    }
+    }, [] )
 
-    function endMove(e: MouseEvent) {
+    const endMove = useCallback( (e: MouseEvent) => {
         isDown = false;
+    }, [] );
 
-        div?.removeEventListener('mousedown', startMove, true);
-        document.removeEventListener('mousemove', move, true);
-    }
-
-    function move(event: MouseEvent)
-    {
+    const move = useCallback( (event: MouseEvent) => {
         event.preventDefault();
-            
+
+        div = document.getElementById(id);
         const parentElem = document.getElementById(idParentElem);
         
-        if (isDown && div && parentElem && isMove) {
+        if (isDown && div && parentElem) {
             mousePosition = {      
                 x : event.clientX,
                 y : event.clientY      
@@ -66,13 +66,20 @@ function ScreenBlock(props: Props) {
             
             div.style.left = ( x < 0 || x === 0 ) ? '0' : ( x > right || x === right ) ? right + 'px' : x + 'px';
             div.style.top  = ( y < 0 || y === 0 ) ? '0' : ( y > bottom || y === bottom ) ? bottom + 'px' : y + 'px';
+
+            passLocation( { 
+                [ id ]: {
+                    left: +div.style.left.replace( 'px', '' ), 
+                    top: +div.style.top.replace( 'px', '' ),
+                }
+            } );
         }
-    }
+    }, [] );
 
     function start()
-    {
+    { 
         div = document.getElementById(id);
-
+        
         div?.addEventListener('mousedown', startMove, true);  
         div?.addEventListener('mouseup', endMove, true);
       
@@ -80,31 +87,16 @@ function ScreenBlock(props: Props) {
     }
   
     function end()
-    {
-        //div?.removeEventListener('mousedown', startMove, true);
-        //div?.removeEventListener('mouseup', endMove, true);
-
-        //document.removeEventListener('mousemove', move, true);
-    }
-
-    async function changeScreenBlock()
-    {
-        await setIsMove( true );  
-        start();      
-    }
-
-    async function closeChangeScreenBlock()
-    {
-        await setIsMove( false ) ;    
-        end();    
+    { 
+        div?.removeEventListener('mousedown', startMove, true);
+        div?.removeEventListener('mouseup', endMove, true);
+  
+        document.removeEventListener('mousemove', move, true);
     }
 
     return (
         <div className={`screenBlock ${ isResize ? 'resize' : '' }`} id={ id }>
             <button>del</button>
-            <button onClick={ () => changeScreenBlock() }>move</button>
-            <button>size</button>
-            <button onClick={ () => closeChangeScreenBlock() }>ok</button>
             <iframe src={ path } allowFullScreen />
         </div>
     )
