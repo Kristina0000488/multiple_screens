@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 
 import { locationScreenBlockType } from '../types';
 
@@ -50,7 +50,8 @@ function ScreenBlock(props: Props) {
         div = document.getElementById(id);
         const parentElem = document.getElementById(idParentElem);
         
-        if (isDown && div && parentElem) {
+        if (isDown && div && parentElem) 
+        {
             mousePosition = {      
                 x : event.clientX,
                 y : event.clientY      
@@ -67,12 +68,13 @@ function ScreenBlock(props: Props) {
             div.style.left = ( x < 0 || x === 0 ) ? '0' : ( x > right || x === right ) ? right + 'px' : x + 'px';
             div.style.top  = ( y < 0 || y === 0 ) ? '0' : ( y > bottom || y === bottom ) ? bottom + 'px' : y + 'px';
 
-            passLocation( { 
+            passLocation({ 
                 [ id ]: {
                     left: +div.style.left.replace( 'px', '' ), 
                     top: +div.style.top.replace( 'px', '' ),
+                    bottom: +div.style.top.replace( 'px', '') + div.offsetHeight,
                 }
-            } );
+            });  //console.log(div.offsetHeight)
         }
     }, [] );
 
@@ -84,6 +86,16 @@ function ScreenBlock(props: Props) {
         div?.addEventListener('mouseup', endMove, true);
       
         document.addEventListener('mousemove', move, true);
+
+        if (div) {
+            passLocation({ 
+                [ id ]: {
+                    left: +div.style.left.replace( 'px', '' ), 
+                    top: +div.style.top.replace( 'px', '' ),
+                    bottom: +div.style.top.replace( 'px', '') + div.offsetHeight,
+                }
+            });
+        }
     }
   
     function end()
@@ -97,6 +109,7 @@ function ScreenBlock(props: Props) {
     return (
         <div className={`screenBlock ${ isResize ? 'resize' : '' }`} id={ id }>
             <button>del</button>
+            <p>{ id }</p>
             <iframe src={ path } allowFullScreen />
         </div>
     )

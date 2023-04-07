@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 
 import ScreenBlock from './components/ScreenBlock';
 import { locationScreenBlockType } from './types';
@@ -10,37 +10,39 @@ function App() {
   const [ isResize, setIsResize   ] = useState<boolean>(false);
   const [ startMove, setStartMove ] = useState<boolean>(false);
   const [ endMove, setEndMove     ] = useState<boolean>(false);
-  const [ locations, setLocations ] = useState<Object>({});
+  const [ locations, setLocations ] = useState<locationScreenBlockType>({} as locationScreenBlockType);
+  const [ currentBlockId, setCurrentBlockId ] = useState<string>('');
  
   const screens = [
     { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen' },
     { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen' },
   ];
 
-  function checkEquality(location: locationScreenBlockType)
-  {
+  const checkEquality = useMemo( () => {
     if ( endMove ) return;
-    
-    setLocations( (prev) => { 
-      return { ...prev, ...location };
-    } );
 
-    const step = 10;
+    const step = 20;
+
+    const currentBottomScreen = locations[ currentBlockId ]?.bottom;
+    const range = [ currentBottomScreen - step || 0, currentBottomScreen + step || 0];
     
+    //console.log(range)
+        
     if (locations) {
       for (let i in locations) {
-        console.log(i)
-        if ( !(i in location) ) {
-          console.log('Location')
+        if ( i !== currentBlockId ) {
+          const anotherBottomScreen = locations[i].bottom;
+          console.log(anotherBottomScreen, range)
+          if (anotherBottomScreen > range[0] && anotherBottomScreen < range[1] && anotherBottomScreen !== 0) {
+            console.log('lololo')
+          }
+          
         }
       }
     }
-    
-    console.log(locations)
-
-  }
-  //checkEquality({'screen': { top: 222, left: 10}})
-  console.log(locations)
+  }, [ locations ])
+  
+  //console.log(locations)
   return (
     <div className="App" id="app">
       <button onClick={ () => {
@@ -51,12 +53,14 @@ function App() {
       <button onClick={ () => { 
         setIsResize(true);
         setEndMove(true);
-        setStartMove(false)
+        setStartMove(false);
+        setCurrentBlockId('');
       } }>size</button>
       <button onClick={ () => {
         setIsResize(false);
         setEndMove(true);
-        setStartMove(false)
+        setStartMove(false);
+        setCurrentBlockId('');
       } }>ok</button>
       { 
         screens && screens.map( (screen, id) => <ScreenBlock 
@@ -66,8 +70,11 @@ function App() {
           _startMove={ startMove }
           _endMove={ endMove }
           isResize={ isResize }
-          passLocation={ async (location: locationScreenBlockType) => {
-            //checkEquality(location)
+          passLocation={ (location: locationScreenBlockType) => {
+            setCurrentBlockId( Object.keys(location)[0] );
+            setLocations( (prev) => { 
+              return { ...prev, ...location };
+            } );
           } }
         /> ) 
       }      
