@@ -5,6 +5,14 @@ import { locationScreenBlockType } from './types';
 
 import './css/App.css';
 
+type elem = {
+  id: string;
+  differenceY: number;
+}
+
+function random_choice<T>(list:T[] ) {
+  return list[Math.floor(Math.random() * list.length)];
+}
 
 function App() {
   const [ isResize, setIsResize   ] = useState<boolean>(false);
@@ -12,37 +20,67 @@ function App() {
   const [ endMove, setEndMove     ] = useState<boolean>(false);
   const [ locations, setLocations ] = useState<locationScreenBlockType>({} as locationScreenBlockType);
   const [ currentBlockId, setCurrentBlockId ] = useState<string>('');
+  //const [ closeElems, setCloseElems ] = useState<Object>({});
+
  
   const screens = [
+    { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen' },
     { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen' },
     { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen' },
   ];
 
   const checkEquality = useMemo( () => {
-    if ( endMove ) return;
-
     const step = 20;
 
     const currentBottomScreen = locations[ currentBlockId ]?.bottom;
     const range = [ currentBottomScreen - step || 0, currentBottomScreen + step || 0];
-    
-    //console.log(range)
         
-    if (locations) {
+    if (locations) {      
+      let closeElems: Array<elem> = [];
+
       for (let i in locations) {
+       // const elem = document.getElementById(i);
+       // elem!.style.borderBottom = '';
+
         if ( i !== currentBlockId ) {
-          const anotherBottomScreen = locations[i].bottom;
-          console.log(anotherBottomScreen, range)
+          const anotherBottomScreen = locations[i].bottom;                    
+          const elem = document.getElementById(i);
+
+          elem!.style.borderBottom = '';
+
           if (anotherBottomScreen > range[0] && anotherBottomScreen < range[1] && anotherBottomScreen !== 0) {
-            console.log('lololo')
-          }
-          
+            closeElems.push({ 
+              id: i, 
+              differenceY: Math.abs(currentBottomScreen - anotherBottomScreen),
+            });
+          } else {
+            elem!.style.borderBottom = '';
+          }          
         }
       }
-    }
-  }, [ locations ])
+
+      if ( closeElems.length > 0 ) {    
+        let lowestelem : elem = {} as elem;
+
+        for (let i = 0; i < closeElems.length; i++) {
+          if ( lowestelem.differenceY && lowestelem.differenceY > closeElems[i].differenceY ) {
+            lowestelem = closeElems[i];
+          } else if ( !lowestelem.differenceY ) {
+            lowestelem = closeElems[i];
+          }
+        }
+
+        if (lowestelem) {
+          const elem = document.getElementById(lowestelem.id);
   
-  //console.log(locations)
+          if (elem) elem.style.borderBottom = '10px solid blue';
+        }     
+        
+        if (endMove) 
+      }
+    }
+  }, [ locations ] )
+  
   return (
     <div className="App" id="app">
       <button onClick={ () => {
@@ -50,12 +88,6 @@ function App() {
         setStartMove(true);
         setEndMove(false);
       } }>move</button>
-      <button onClick={ () => { 
-        setIsResize(true);
-        setEndMove(true);
-        setStartMove(false);
-        setCurrentBlockId('');
-      } }>size</button>
       <button onClick={ () => {
         setIsResize(false);
         setEndMove(true);
