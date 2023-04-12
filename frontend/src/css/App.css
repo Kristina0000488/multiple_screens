@@ -20,3 +20,8 @@ body {
 * {
   box-sizing: border-box;
 }
+.line {
+  width: 100%;
+  height: 5px;
+  background-color: #1b51da;
+}

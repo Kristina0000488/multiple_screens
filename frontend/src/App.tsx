@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 
 import ScreenBlock from './components/ScreenBlock';
-import { locationScreenBlockType } from './types';
+import { locationScreenBlockType, screenBlockType } from './types';
 
 import './css/App.css';
 
@@ -20,13 +20,11 @@ function App() {
   const [ endMove, setEndMove     ] = useState<boolean>(false);
   const [ locations, setLocations ] = useState<locationScreenBlockType>({} as locationScreenBlockType);
   const [ currentBlockId, setCurrentBlockId ] = useState<string>('');
-  //const [ closeElems, setCloseElems ] = useState<Object>({});
-
  
-  const screens = [
-    { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen' },
-    { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen' },
-    { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen' },
+  const screens: screenBlockType[] = [
+    { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen', initPosition: { x: 10, y: 10 } },
+    { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen', initPosition: { x: 250, y: 100 } },
+    { path: "https://stylus-lang.com/docs/executable.html#stylus-cli", id: 'screen', initPosition: { x: 450, y: 300 } },
   ];
 
   const checkEquality = useMemo( () => {
@@ -38,24 +36,22 @@ function App() {
     if (locations) {      
       let closeElems: Array<elem> = [];
 
+      const div = document.getElementById(`line-${ currentBlockId }`);
+      div?.parentNode?.removeChild(div);
+
       for (let i in locations) {
-       // const elem = document.getElementById(i);
-       // elem!.style.borderBottom = '';
-
         if ( i !== currentBlockId ) {
-          const anotherBottomScreen = locations[i].bottom;                    
-          const elem = document.getElementById(i);
+          const anotherBottomScreen = locations[i].bottom; 
 
-          elem!.style.borderBottom = '';
+          const div = document.getElementById(`line-${ i }`);
+          div?.parentNode?.removeChild(div);
 
           if (anotherBottomScreen > range[0] && anotherBottomScreen < range[1] && anotherBottomScreen !== 0) {
             closeElems.push({ 
               id: i, 
               differenceY: Math.abs(currentBottomScreen - anotherBottomScreen),
             });
-          } else {
-            elem!.style.borderBottom = '';
-          }          
+          }       
         }
       }
 
@@ -73,13 +69,33 @@ function App() {
         if (lowestelem) {
           const elem = document.getElementById(lowestelem.id);
   
-          if (elem) elem.style.borderBottom = '10px solid blue';
+          if (elem) {
+            const div = document.createElement('div');
+
+            div.id = `line-${ lowestelem.id }`;
+
+            div.style.position = 'absolute'; 
+            div.style.left     = elem.getBoundingClientRect().left - 8 + 'px'; 
+            div.style.top      = elem.getBoundingClientRect().bottom + 2 + 'px';
+            div.style.width    = elem.offsetWidth + 16 + 'px';
+            div.className      = 'line';           
+
+            document.body.appendChild(div);
+          }
         }     
-        
-        if (endMove) 
       }
     }
-  }, [ locations ] )
+  }, [ locations ] );
+
+  const removeBorder = useMemo( () => {        
+    if (locations && endMove) {      
+      for (let i in locations) {
+       const div = document.getElementById(`line-${ i }`);
+
+       div?.parentNode?.removeChild(div);
+      }
+    }
+  }, [ endMove ] );
   
   return (
     <div className="App" id="app">
@@ -102,6 +118,7 @@ function App() {
           _startMove={ startMove }
           _endMove={ endMove }
           isResize={ isResize }
+          initPosition={ screen.initPosition }
           passLocation={ (location: locationScreenBlockType) => {
             setCurrentBlockId( Object.keys(location)[0] );
             setLocations( (prev) => { 

@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState } from 'react';
 
-import { locationScreenBlockType } from '../types';
+import { locationScreenBlockType, positionType } from '../types';
 
 import '../css/ScreenBlock.css';
 
@@ -11,62 +11,36 @@ type Props = {
     isResize: boolean;
     _startMove: boolean;
     _endMove: boolean;
+    initPosition?: positionType;
     passLocation: ( location: locationScreenBlockType ) => void;
 }
 
 function ScreenBlock(props: Props) { 
     const [ blockMove, setBlockMove ] = useState<boolean>(false);
 
-    const { path, id, _startMove, _endMove, passLocation } = props;   
+    const { path, id, _startMove, _endMove, passLocation, initPosition={} as positionType } = props;   
 
     let idParentElem = 'app';
 
     let mousePosition;
     let offset = [0,0];
-    let div: HTMLElement | null = document.getElementById(id);
+    let div: HTMLElement | null = null;
     let isDown = false;
 
+    useEffect( () => { console.log(initPosition);
+        if (initPosition) {
+            div = document.getElementById(id);
+            div!.style.left = initPosition.x + 'px';
+            div!.style.top = initPosition.y + 'px';
+        }
+    }, [ ] );
+
     useEffect( () => {
+        div = document.getElementById(id);
+
         if ( _startMove ) start();
         if ( _endMove ) end();
     }, [ _startMove, _endMove ] );
-
-   /* useEffect( () => {
-        div = document.getElementById(id);
-        div!.onclick?( (e: MouseEvent) => click(e) ) : null;
-    }, [] );*/
-
-
-    const click = useCallback( (e: MouseEvent) => {
-        const rectX = div?.getBoundingClientRect().left || 0;
-        const rectY = div?.getBoundingClientRect().top || 0;
-        const width = div?.offsetWidth;
-        const height = div?.offsetHeight;
-
-        const x = e.clientX - rectX; 
-        const y = e.clientY - rectY; 
-
-        const step = 15;
-
-        const blockedX = [ width! - step, width || 0 ];
-        const blockedY = [ height! - step, height || 0 ];
-
-        if ( x > blockedX[0] && x < blockedX[1] && y > blockedY[0] && y < blockedY[1] ) {
-           //document.removeEventListener('mousemove', move, true);
-           div?.removeEventListener('mousedown', startMove, true);
-           div?.removeEventListener('mouseup', endMove, true);
-           //div?.removeEventListener('click', click, true);
-     
-           document.removeEventListener('mousemove', move, true);
-           //console.log('click))', blockMove);
-        } else {
-            //document.addEventListener('mousemove', move, true);
-           // console.log('click(((', blockMove); 
-           div?.addEventListener('mousedown', startMove, true);          
-           document.addEventListener('mousemove', move, true);
-           div?.addEventListener('mouseup', endMove, true);
-        }
-    }, [] );
 
     const startMove = useCallback( (e: MouseEvent) => {
         isDown = true;
@@ -92,17 +66,9 @@ function ScreenBlock(props: Props) {
         const blockedY = [ height! - step, height || 0 ];
 
         if ( x > blockedX[0] && x < blockedX[1] && y > blockedY[0] && y < blockedY[1] ) {
-           //document.removeEventListener('mousemove', move, true);
-           //div?.removeEventListener('mousedown', startMove, true);
            div?.removeEventListener('mouseup', endMove, true);
-           //div?.removeEventListener('click', click, true);
-     
            document.removeEventListener('mousemove', move, true);
-           //console.log('click))', blockMove);
-        } else {
-            //document.addEventListener('mousemove', move, true);
-           // console.log('click(((', blockMove); 
-           //div?.addEventListener('mousedown', startMove, true);          
+        } else {       
            document.addEventListener('mousemove', move, true);
            div?.addEventListener('mouseup', endMove, true);
         }
@@ -142,7 +108,7 @@ function ScreenBlock(props: Props) {
                     top: +div.style.top.replace( 'px', '' ),
                     bottom: +div.style.top.replace( 'px', '') + div.offsetHeight,
                 }
-            });  //console.log(div.offsetHeight)
+            }); 
         }
     }, [] );
 
@@ -153,7 +119,6 @@ function ScreenBlock(props: Props) {
         div?.addEventListener('mousedown', startMove, true);          
         document.addEventListener('mousemove', move, true);
         div?.addEventListener('mouseup', endMove, true);
-       // div?.addEventListener('click', click, true);
       
         if (div) {
             passLocation({ 
@@ -170,7 +135,6 @@ function ScreenBlock(props: Props) {
     { 
         div?.removeEventListener('mousedown', startMove, true);
         div?.removeEventListener('mouseup', endMove, true);
-        div?.removeEventListener('click', click, true);
   
         document.removeEventListener('mousemove', move, true);
     }
