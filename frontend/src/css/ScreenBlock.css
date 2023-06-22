@@ -1,10 +1,9 @@
 .screenBlock {
   padding: 20px;
-  width: 300px;
-  height: 300px;
   position: absolute;
   overflow: hidden;
   border: 1px solid #f00;
+  background-color: #fff !important;
 }
 .screenBlock iframe {
   width: 100%;
