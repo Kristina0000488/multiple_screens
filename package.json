@@ -1,0 +1,27 @@
+{
+  "name": "screens",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "server": "npm run dev --prefix backend",
+    "client": "npm start --prefix frontend",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini init"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2",
+    "node-fetch": "^3.3.2",
+    "react-charts": "^3.0.0-beta.57"
+  }
+}

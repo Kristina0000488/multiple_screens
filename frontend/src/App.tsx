@@ -1,23 +1,25 @@
-import React, { useState, useEffect, useMemo, useContext } from 'react';
+import React, { useEffect } from 'react';
 import { observer } from "mobx-react-lite";
-import { makeObservable, observable, action, toJS, runInAction } from "mobx";
-import ScreenBlock from './components/ScreenBlock';
-import Index from './pages/index';
+import {
+  RouterProvider,
+} from "react-router-dom";
 
-import './css/App.css';
+import {router} from './router';
+import { store } from './store';
 
-type elem = {
-  id: string;
-  differenceY: number;
-}
+import ErrorList from './components/ErrorList';
 
-function random_choice<T>(list:T[] ) {
-  return list[Math.floor(Math.random() * list.length)];
-}
+import './style/App.css';
+
 
 function App() {
+  useEffect( () => store.getAll(), [] );
+  
   return (
-    <Index />
+    <>
+      <RouterProvider router={ router } />
+      <ErrorList />
+    </>
   );
 }
 

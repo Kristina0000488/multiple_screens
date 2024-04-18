@@ -1,45 +1,61 @@
-
-
-
-
-
-import { makeObservable, observable, action, toJS, runInAction, computed } from "mobx";
+import { toJS, runInAction, makeAutoObservable } from "mobx";
 import { createContext } from "react";
-import { arrIdScreensType, screenBlockType, collectionsType, collectionType } from '../types';
-import localestorage from '../localStorage';
+
+import * as types from '../types';
+import { client } from '../services/api';
 
 
 class Store {
-    screens: screenBlockType[] = [];
-    collections: collectionsType = [{name: 'first', screens: [], id:'1'}];
+    screens: types.ScreenBlock[] = [];
+    roughScreens: types.RoughScreens = {};
+    collections: types.Collection[] = [];
+    init = {
+        left: 150, 
+        top: 300, 
+        right: 350, 
+        bottom: 600, 
+        width: 300, 
+        height: 300 
+    };
+    status = 'initial';
+    copiedScreens = {} as { [collectionID : string]: types.ScreenBlock<types.Location>[] };
+    copiedScreenIds = {} as { [ collectionId : string] : { [screenId: string]: boolean } };
+    errors = [] as types.ErrorList; 
 
     constructor() {
-        makeObservable( this, {
-            screens: observable,
-            getScreens: action,
-            addScreen: action,
-            updateScreens: action,
-            removeScreen: action,
-            _getScreens: computed,
-            getCollections: action,
-            _getCollections: computed,
-            getAll: action,
-        } )
+        makeAutoObservable(this);
     }
 
-    async getScreens(): Promise<void> {
-        const data: screenBlockType[] = await localestorage.get('screens');
+    getScreens = async () => {
+        try {
+            const data = await client.getScreens();
 
-        runInAction(() => this.screens = data);
-    }
+            runInAction( () => {
+                this.roughScreens = data.data;
+                this.screens = Object.values(this.roughScreens)  || [];
+            } );
+        } catch (error) {
+            runInAction( () => {
+                this.status = "error";
+            } );
+        }
+    };
 
-    async getCollections(): Promise<void> {
-        const data: collectionsType = await localestorage.get("collections");
+    getCollections = async () => {
+        try {
+            const data = await client.getCollections();
 
-        runInAction(() => this.collections = data);
-    }
+            runInAction( () => {  
+                this.collections = data.data;
+            } );
+        } catch (error) {
+            runInAction( () => {
+                this.status = "error";
+            } );
+        }
+    };
 
-    getAll(): void {
+    getAll() {
         this.getScreens();
         this.getCollections();
     }
@@ -48,83 +64,323 @@ class Store {
         return this.screens;
     }
 
+    get _getRoughScreens() {
+        return this.roughScreens;
+    }
+
     get _getCollections() {
         return this.collections;
     }
 
-    addScreen(path: string, name: string, updTime: number, idCollection: string = ''): void {   
-        const id = 'screen' + this.screens.length; 
-        const screen = { 
-            path: `${ path }`, 
-            id,
-            name,
-            updTime,
-            idCollection,
-            initPosition: { 
-                left: 150, 
-                top: 300, 
-                right: 350, 
-                bottom: 600, 
-                width: 300, 
-                height: 300 
-            } 
-        };
-        
-        runInAction(() => this.screens.push(screen));   
-        runInAction(() => this.collections.find((collection) => idCollection === collection.id)?.screens.push(id));   
-        runInAction(() => localestorage.set(this.screens, "screens"));
-        runInAction(() => localestorage.set(this.collections, "collections"));
+    getCollectionById(id: string) {
+        return this.collections.find( collection => collection.id === id ) ?? null;
+    }
+
+    getScreenById(id: string) {
+        return this.screens.find( screen => screen.id === id ) ?? null;
     }
     
-    addCollection(name: string, arrIdScreens: arrIdScreensType): void {   
-        const collection: collectionType = { 
-            id: 'collect' + this.collections.length, 
-            name, 
-            screens: arrIdScreens
-        };
+    createScreen = async (path: string, name: string, updTime: number, collectionId: string) => {   
+        try {
+            const obj: Record<string, types.Location> = {}; 
+            obj[ collectionId ] = this.init; 
+    
+            const screen: types.InitScreenBlock = { 
+                path: `${ path }`, 
+                name,
+                updTime,
+                initPositions: obj,
+            };
 
-        runInAction(() => this.collections.push(collection));   
-        runInAction(() => localestorage.set(this.collections, 'collections'));
+            const response = await client.createScreen( screen, collectionId );
+            
+            if (response.status === 201) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+
+                this.getAll();
+            } 
+        } catch (error) {
+            runInAction( () => {
+                this.status = "error";
+                
+                console.error( error );
+            } );
+        }  
     }
 
-    updateScreens(screens: screenBlockType[]): void {
-        runInAction(() => this.screens = screens);
-        runInAction(() => localestorage.set(this.screens, "screens"));
+    createChartScreen = async (path: string, name: string, updTime: number, collectionId: string, username?: string, password?: string) => {   
+        try {
+
+            const obj: Record<string, types.Location> = {}; 
+            obj[ collectionId ] = this.init; 
+    
+            const screen: types.InitScreenBlock = { 
+                path: `${ path }`, 
+                name,
+                updTime,
+                initPositions: obj,
+            };
+
+            const response = await client.createChart( screen, collectionId, username, password );
+            
+            if (response.status === 201) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+
+                this.getAll();
+            } 
+        } catch (error) {
+            runInAction( () => {
+                this.status = "error";
+                
+                console.error( error );
+            } );
+        }  
     }
 
-    updateCollections(collections: collectionsType): void {
-        runInAction(() => this.collections = collections);
-        runInAction(() => localestorage.set(this.collections, 'collections'));
+    copyScreensToCollection = async (newCollectionId: string) => {   
+        try {
+            const ids = Object.values(this.copiedScreens)[0].map( (screen) => screen.id );
+
+            const response = await client.copyScreen( ids, newCollectionId );
+
+            if (response.status === 201) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+
+                this.getAll();
+
+                this.copiedScreens = {};
+                this.copiedScreenIds = {};
+            } 
+        } catch (error) {
+            runInAction( () => {
+                this.status = "error";
+                console.error( error );
+            } );
+        }  
     }
 
-    removeScreen(id: string): void {
-        const findedIdScreen = [ ...this.screens ].findIndex( (value: screenBlockType) => value.id === id );
-        const idCollection   = this.screens[findedIdScreen].idCollection;
-        const indexColls     = [ ...this.collections ].findIndex((collectiob) => collectiob.id === idCollection);
-        const indexScreen    = [ ...this.collections ][ indexColls ]?.screens.indexOf(id);
+    createCollection = async (name: string, description?: string) => {
+        try {
+            const collection: types.InitCollection  = { 
+                name, 
+                description,
+                screenIds: []
+            };            
 
-        if (indexScreen! > -1) { 
-            this.collections[ indexColls ].screens.splice(indexScreen!, 1);
+            const response = await client.createCollection( collection );
+
+            if (response.status === 201) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+                
+                await this.getCollections();
+            } 
+        } catch (error) {
+            runInAction( () => {
+                this.status = "error";
+                console.error( error );
+            } );
         }
-
-        if (findedIdScreen !== -1) {    
-            this.screens.splice(findedIdScreen, 1);
-        } 
-
-        runInAction(() => localestorage.set(this.screens, "screens"));
-        runInAction(() => localestorage.set(this.collections, "collections"));
     }
 
-    removeCollection(id: string): void {
-        const findedId = [ ...this.collections ].findIndex( (value: collectionType) => value.id === id );
+    setCopiedScreens(
+        collectionId: string, 
+        id: string,
+        path: string, 
+        name: string, 
+        updTime: number, 
+        initPositions: types.LocationScreenBlock
+    ) {
+        try {
+            const item = { 
+                id,
+                path, 
+                name, 
+                updTime, 
+                initPositions: Object.values(initPositions)[0] 
+            };
+    
+            if ( collectionId in this.copiedScreens) {
+                this.copiedScreens[collectionId].push(item); 
+            } else {
+                this.copiedScreens = { [collectionId]: [ item ] };
+            }
+           // console.log(toJS( this.copiedScreens), toJS(this.copiedScreenIds), 'add' );
+            this.setCopiedScreenIds( collectionId, id );
+        } catch (error) {
+            console.error(error);
+        }
+    }
 
-        if (findedId !== -1) {    
-            this.collections.splice(findedId, 1)
-        } 
+    removeCopiedScreen(collectionId: string, screenId: string) {
+        try {    
+            if ( collectionId in this.copiedScreens) {
+                this.copiedScreens[collectionId] = this.copiedScreens[collectionId].filter( screen => screen.id !== screenId );  
 
-        runInAction(() => localestorage.set(this.collections, 'collections'));
+                if (this.copiedScreens[collectionId].length === 0) {
+                   delete this.copiedScreens[collectionId];
+                }
+
+               // console.log(toJS( this.copiedScreens), 'remove');
+
+                this.setCopiedScreenIds( collectionId, screenId, true );
+            }            
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    setCopiedScreenIds(collectionId: string, screenId: string, remove: boolean = false) {
+        try {            
+            this.copiedScreenIds[ collectionId ] = { 
+                ...this.copiedScreenIds[ collectionId ],
+                [ screenId ]: !remove
+            };
+            console.log(toJS( this.copiedScreenIds), 'copied');
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    async updScreenPosition(location: types.LocationScreenBlock, idCollection: string) { 
+        try {
+            const updatedScreens = [];
+
+            for (let idScreen in location) {
+                const screen =  this.screens.find( screen => screen.id === idScreen );
+
+                if (screen) {
+                    let copied = { ...screen };
+                    copied!.initPositions[ idCollection ] = toJS(location[ idScreen ]);
+                    
+                    updatedScreens.push(copied);
+                }
+                
+            }
+
+            const response = await client.updateScreens(updatedScreens);
+
+            if (response.status === 200) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+
+                await this.getScreens();
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    updateChartData(screen: types.ScreenBlock) {
+        try { console.log('start')
+            if (screen) {
+                this.roughScreens[ screen.id ] = screen;
+            }
+            console.log(toJS(this.roughScreens), screen, ' ===updated')
+            runInAction(() => {
+               this.screens = Object.values(this.roughScreens);
+            })
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    changeCollection = async (collection: types.Collection) => {
+        try {
+            const response = await client.updateCollection( collection.id, collection );
+
+            if (response.status === 200) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+                
+                await this.getCollections();
+            } 
+        } catch (error) {
+            runInAction( () => {
+                this.status = "error";
+
+                console.error( error );
+            } );
+        }
+    }
+
+    changeScreen = async (screen: types.ScreenBlock) => { 
+        try {
+            const response = await client.updateScreen( screen.id, screen );
+
+            if (response.status === 200) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+
+                await this.getScreens();
+            } 
+        } catch (error) {
+            runInAction( () => {
+                this.status = "error";
+                console.error( error );
+            } );
+        }
+    }
+
+    async removeScreen(id: string) {
+        try {
+            const response = await client.deleteScreen( id );
+
+            if (response.status === 200) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+                
+                this.getAll();
+            } 
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    async removeCollection(id: string) { 
+        try {
+            const response = await client.deleteCollection( id );
+
+            if (response.status === 200) {
+                runInAction(() => {
+                    this.status = "success";
+                });
+
+                this.getAll();
+            } 
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    addError(errorMessage: string) {
+        try {
+            this.errors.push({ message: errorMessage, id: String(this.errors.length + 1) });
+            //console.log('add', toJS(this.errors))
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    removeError(id: string) {
+        try {
+            this.errors = [ ...this.errors ].filter( err => err.id !== id );
+        } catch (error) {
+            console.error(error);
+        }
     }
 }
 
 export const store        = new Store();
-export const storeContext = createContext(store);
+export const storeContext = createContext<Store>(store);

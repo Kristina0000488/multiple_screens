@@ -1,102 +1,118 @@
-import React, { useEffect, useCallback, useState, memo, useMemo } from 'react';
-
-import { locationScreenBlockType, locationType } from '../types';
-
-import '../css/ScreenBlock.css';
+import React, { useEffect, useCallback, useRef } from 'react';
+import { observer } from "mobx-react-lite";
 
 
-type Props = {
-    path: string;
-    updTime: number;
-    name: string;
-    id: string;
+import { Button, Popconfirm, ConfigProvider } from 'antd';
+import { DeleteOutlined, QuestionCircleOutlined, EditOutlined, CheckOutlined, CopyOutlined } from '@ant-design/icons';
+
+import { LocationScreenBlock, Location, ScreenBlock as ScreenBlockType, ChartData } from '../types';
+import { theme } from '../pages/configProvider';
+import Chart from './Chart';
+
+
+import '../style/ScreenBlock.css';
+
+
+type Props = ScreenBlockType<Location> & {
     isResize: boolean;
     _startMove: boolean;
     _endMove: boolean;
-    initPosition?: locationType<number>;
-    passLocation: ( location: locationScreenBlockType ) => void;
+    passLocation: ( location: LocationScreenBlock ) => void;
+    handlerEdit: ( ) => void;
     remove: ( id: string ) => void;
+    isHidden?: boolean;
+    idCollection?: string;
+    initPositions: Location; 
+    chartData?: ChartData[];
+    isCopied: boolean;
+    onCopy: ( ) => void;
 }
 
 
 function ScreenBlock(props: Props) { 
+    const iframeRef = useRef(null);
+
     const { 
         path, 
         id='', 
-        name, 
         updTime=5000,
         _startMove, 
         _endMove, 
+        isHidden=false,
         passLocation, 
-        initPosition={} as locationType<number>, 
-        remove 
+        initPositions, 
+        remove,
+        name,
+        handlerEdit,
+        isCopied,
+        onCopy,
+        chartData
     } = props;   
     
-    //const id = useMemo( () => _id, [] );
-
     let mousePosition;
     let offset = [ 0, 0 ];
-    let div: HTMLElement | null = null;
+    let div = document.getElementById(id);
     let isDown = false;
-    let idParentElem = '';
+    let idParentElem = div?.parentElement?.id;
     let IFrameId = `frame-${ id }`;
 
     useEffect( () => {         
         changePosition(id);
-        
-        idParentElem = div!.parentElement?.id || '';
 
-        const upd = setInterval(() => updIFrame(IFrameId), updTime);
+        div = document.getElementById(id);
+        idParentElem = div?.parentElement?.id || '';
 
-        return () => clearInterval(upd);
-    }, [ ] );    
+        if (!chartData) {
+            const upd = setInterval( () => updIFrame(IFrameId), updTime * 1000 );
 
-    useEffect( () => changePosition(id), [ initPosition ] );    
-
+            return () => clearInterval(upd);
+        }
+    }, [ ] );   
+    
     useEffect( () => { 
         if ( _startMove ) start();
-        if ( _endMove ) end();
+        if ( _endMove ) end(); console.log(_startMove, _endMove)
     }, [ _startMove, _endMove ] );
 
-    const updIFrame = (id: string) => { console.log('upd')
+    const updIFrame = (id: string) => { 
         const iframe = document.getElementById(id) as HTMLIFrameElement;
+        //const iframeCopy = document.getElementById(id) as HTMLIFrameElement;
 
-        if (iframe)iframe.contentDocument?.location.reload();
-        // iframe.src = iframe.src;
+        //iframe.src += ''; 
+
+        iframe.contentDocument?.location.reload();
     }
-
+    
     const changePosition = ( id: string ) => {
         div = document.getElementById(id);
-
-        if ( initPosition && div ) 
+        
+        if ( initPositions && div ) 
         {
-            div!.style.left = initPosition.left + 'px';
-            div!.style.top = initPosition.top + 'px';
-            div!.style.right = initPosition.right + 'px';
-            div!.style.bottom = initPosition.bottom + 'px';
-            div!.style.width = initPosition.width ? initPosition.width + 'px' : '300px';
-            div!.style.height = initPosition.height ? initPosition.height + 'px' : '300px';
+            const { left, top, right, bottom, width, height } = initPositions;
+
+            div!.style.left   = left + 'px';
+            div!.style.top    = top + 'px';
+            div!.style.right  = right + 'px';
+            div!.style.bottom = bottom + 'px';
+            div!.style.width  = width ? width + 'px' : '300px';
+            div!.style.height = height ? height + 'px' : '300px';
         }
     }
 
     const getPosition = ( id: string ) => {
         div = document.getElementById(id);
         
-        return {
-            left: +div!.style.left.replace( 'px', '' ), 
-            top: +div!.style.top.replace( 'px', '' ),
-            bottom: +div!.style.top.replace( 'px', '') + div!.offsetHeight,
-            right: +div!.style.right.replace( 'px', '' ),
-            width: +div!.style.width.replace( 'px', '' ),
-            height: +div!.style.height.replace( 'px', '' ),
-        }
+        const { width, height, top, left, right, bottom } = div!.getClientRects()[ 0 ];
+
+        const position: Location = { width, height, top, left, right, bottom } ;
+        
+        return position;
     }
 
     const startMove = useCallback( (e: MouseEvent) => {
         isDown = true;
-
-        if (div) 
-        {
+        
+        if (div) {
             offset = [
                 div.offsetLeft - e.clientX,
                 div.offsetTop - e.clientY
@@ -131,11 +147,10 @@ function ScreenBlock(props: Props) {
     const move = useCallback( (event: MouseEvent) => {
         event.preventDefault();
 
-        div = document.getElementById(id);
-        const startMove = document.getElementsByClassName(`start`).length > 0;
-        const parentElem = document.getElementById(idParentElem);
-        
-        if (isDown && div && parentElem && startMove) 
+        const isMovedMode = document.getElementsByClassName(`start`).length > 0;
+        const parentElem = document.getElementById(idParentElem ?? '');
+
+        if (isDown && div && parentElem && isMovedMode) 
         {
             mousePosition = {      
                 x : event.clientX,
@@ -150,74 +165,115 @@ function ScreenBlock(props: Props) {
   
             const right  = x_screen - div.offsetWidth;
             const bottom = y_screen - div.offsetHeight;
-            console.log(div.style.width, '000')
             
             div.style.left = ( x < 0 || x === 0 ) ? '0' : ( x > right || x === right ) ? right + 'px' : x + 'px';
             div.style.top  = ( y < 0 || y === 0 ) ? '0' : ( y > bottom || y === bottom ) ? bottom + 'px' : y + 'px';
-            div.style.zIndex = '10';
+            div.style.zIndex = '5';
 
             passLocation({ 
-                [ id ]: { ...getPosition(id) }
+                [ id ]: getPosition(id)
             }); 
         }
     }, [ ] );
 
     function start() { 
         div = document.getElementById(id);
-
-        if (div) resize_ob.observe( div ); 
       
         if (div) {            
-            div?.addEventListener('mousedown', startMove, true);          
-            div?.addEventListener('mouseup', endMove, true);
-            div?.addEventListener("dragstart", () => false );
+            div.addEventListener('mousedown', startMove, true);          
+            div.addEventListener('mouseup', endMove, true);
+            div.addEventListener("dragstart", () => false );
 
-            passLocation({ 
-                [ id ]: { ...getPosition(id) }
-            });
+            resize_ob.observe( div );             
+
+            //div.style.cursor = 'grab';
         }
-    }
-  
+    };
+      
     function end()
     {  
         document.removeEventListener('mousemove', move, true);
         
-        div?.removeEventListener('mousedown', startMove, true);
-        div?.removeEventListener('mouseup', endMove, true);  
+        div!.removeEventListener('mousedown', startMove, true);
+        div!.removeEventListener('mouseup', endMove, true);  
 
-        if (div) resize_ob.unobserve(div);
+        resize_ob.unobserve(div!);
+
+        //div!.style.cursor = 'pointer';
     }
 
     const resize_ob = new ResizeObserver(function(entries) {
-        const { width, height } = entries[0].contentRect;
-    
-        if (div && width !== 0 && height !== 0) {
-            passLocation({ 
-                [ id ]: {
-                    left: +div.style.left.replace( 'px', '' ), 
-                    top: +div.style.top.replace( 'px', '' ),
-                    bottom: +div.style.top.replace( 'px', '' ) + div.offsetHeight,
-                    right: +div.style.right.replace( 'px', '' ),
-                    width: +div.style.width.replace( 'px', '' ),
-                    height: +div.style.height.replace( 'px', '' ),
-                }
-            });
+        try { 
+            const { width, height } = entries[0].contentRect;
+                    
+            if (div && width !== 0 && height !== 0) {   
+                const currentPosition = getPosition(id);
+
+                passLocation({ 
+                    [ id ]: currentPosition
+                });
+            }
+        } catch (error) {
+            console.error(error);
         }
     });
-    
+
     return (
-        <div className={ `screenBlock ${ _startMove ? 'resize' : '' }` } id={ id } >
-            { <button onClick={ () => {
-                div?.removeEventListener('mousedown', startMove, true);
-                div?.removeEventListener('mouseup', endMove, true);          
-                document.removeEventListener('mousemove', move, true);
-                resize_ob.disconnect();
-                remove( id );
-            } }>del</button> }
-            <p>{ id }</p>
-            <iframe id={ IFrameId } title={ id } src={ path } allowFullScreen />
+        <div className={ `screenBlock ${ _startMove ? 'resize' : '' }` } id={ id } hidden={ isHidden } >
+            <div className='header_screenBlock'>
+                { name }
+                { _endMove && <div>
+                    <ConfigProvider theme={{ token: theme.tokenText }}>
+                        <Button 
+                            className='copyBtn_ChangeCollection' 
+                            type="text" 
+                            onClick={ () => onCopy() }
+                        >{ 
+                            !!isCopied ? 
+                            <> <CheckOutlined />Copied </> : 
+                            <CopyOutlined />
+                        }</Button> 
+                        <Button type='text' shape="circle" onClick={ handlerEdit }>
+                            <EditOutlined />
+                        </Button> 
+                        <Popconfirm
+                            title="Delete the screen"
+                            description="Are you sure to delete this screen?"
+                            icon={ <QuestionCircleOutlined /> }
+                            onConfirm={ () => {
+                                div?.removeEventListener('mousedown', startMove, true);
+                                div?.removeEventListener('mouseup', endMove, true);          
+                                document.removeEventListener('mousemove', move, true);
+                                resize_ob.disconnect();
+                                remove(id);
+                            }  }
+                            okText="Yes"
+                            cancelText="No"
+                            okButtonProps={{ rootClassName: 'popconfirm_Okbtn' }}
+                            cancelButtonProps={{ rootClassName: 'popconfirm_Onbtn' }}
+                        >
+                            <Button type='text' shape="circle" >
+                                <DeleteOutlined />
+                            </Button> 
+                        </Popconfirm> 
+                    </ConfigProvider> 
+                </div> }
+            </div> 
+            { 
+                chartData && chartData.length > 0 ? 
+                <Chart data={ chartData } /> : 
+                <iframe 
+                    id={ IFrameId } 
+                    ref={ iframeRef } 
+                    title={ id } 
+                    src={ path }  
+                    width="100%" 
+                    style={{ border: 0, height: "50vh" }}
+                    allowFullScreen
+                /> 
+            }           
         </div>
     )
 }
 
-export default ScreenBlock;
+export default observer(ScreenBlock);

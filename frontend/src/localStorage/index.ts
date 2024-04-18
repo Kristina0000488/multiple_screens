@@ -1,44 +1,41 @@
-import { store } from '../store';
-
 import * as types from '../types';
 
 
 class LocalStorage {
-    //screens: string = 'screens';
-    //collections: string = 'collections';
-
-    constructor() { }
-
-    #privateGetItem(key: string): any  {
+    private getItem(key: string) {
         const data = localStorage.getItem(key);
 
-        if (data) return JSON.parse(data);
-
-        return [];        
+        if (data) {
+            return JSON.parse(data);
+        }
     }
 
-    #privateSetItem(key: string, value: any): void {
+    private setItem(key: string, value: any) {
         const item = JSON.stringify(value);
 
         localStorage.setItem(key, item);
     }
 
-    #privateRemoveItem(key: string): void {
+    private removeItem(key: string) {
         localStorage.removeItem(key);
     }
 
-    async get(key: types.keysLocalStorageType): Promise<any[]> {
-        const data: any[] = await this.#privateGetItem(key);
+    public async get(key: types.KeysLocalStorage): Promise<any[] | string> {
+        const data = await this.getItem(key);
 
         return data;
     }
 
-    async set(value: any[], key: types.keysLocalStorageType): Promise<void> {
-        this.#privateSetItem(key, value);
+    public async set(value: any[], key: types.KeysLocalStorage): Promise<void> {
+        this.setItem(key, value);
     }
 
-    async remove(key: types.keysLocalStorageType): Promise<void> {
-        this.#privateRemoveItem(key);
+    public async remove(key: types.KeysLocalStorage): Promise<void> {
+        this.removeItem(key);
+    }
+
+    public async setCurrentCollection(value: string): Promise<void> {
+        this.setItem(types.KeysLocalStorage.CurrentCollection, value);
     }
 }
 
